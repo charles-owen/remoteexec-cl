@@ -1,0 +1,17 @@
+{
+  "name": "remoteexec-cl",
+  "version": "1.0.0",
+  "description": "CourseLib Remote Execution",
+  "main": "index.js",
+  "keywords": [
+    "Education",
+    "Course Web Sites",
+    "Programming"
+  ],
+  "author": "Charles B. Owen",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {
+    "course-cl": ">=0.0.1"
+  }
+}

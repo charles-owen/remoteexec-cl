@@ -1,3 +1,4 @@
 
+import {RemoteExecFactory} from './js/RemoteExecFactory';
 
-console.log('Remote exec index.js');
+RemoteExecFactory.create(Site.site);

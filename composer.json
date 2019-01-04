@@ -19,5 +19,9 @@
       "type": "vcs",
       "url": "https://github.com/charles-owen/playground-cl.git"
     }
-  ]
+  ],
+  "require": {
+    "ext-openssl": "*",
+    "cl/playground": "^2.0"
+  }
 }

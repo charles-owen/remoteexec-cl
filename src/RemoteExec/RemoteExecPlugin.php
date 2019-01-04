@@ -25,7 +25,7 @@ class RemoteExecPlugin extends \CL\Site\Plugin {
 	 * Return an array of tags indicating what plugins this one is dependent on.
 	 * @return array of tags this plugin is dependent on
 	 */
-	public function depends() {return ['course'];}
+	public function depends() {return ['course', 'playground'];}
 
 	/**
 	 * Amend existing object
@@ -34,7 +34,15 @@ class RemoteExecPlugin extends \CL\Site\Plugin {
 	 * @param $object Object to amend.
 	 */
 	public function amend($object) {
+		if($object instanceof Router) {
+			$router = $object;
 
+			$router->addRoute(['api', 'remoteexec', '*'], function(Site $site, Server $server, array $params, array $properties, $time) {
+				$resource = new RemoteExecApi();
+				return $resource->apiDispatch($site, $server, $params, $properties, $time);
+			});
+
+		}
 	}
 
 }

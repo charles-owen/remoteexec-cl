@@ -8,9 +8,7 @@
 namespace CL\RemoteExec;
 
 use CL\Site\Site;
-
-use ssh2_connect;
-use ssh2_auth_pubkey_file;
+use CL\Site\Util\Encrypt;
 
 
 /**
@@ -20,22 +18,29 @@ use ssh2_auth_pubkey_file;
 class SshExec {
 	/**
 	 * SshExec constructor.
+	 *
+	 * If site is not passed, it must be specified
+	 * as a property before connect is called.
+	 *
 	 * @param Site $site The site object
 	 */
-	public function __construct(Site $site) {
+	public function __construct(Site $site=null) {
 		$this->site = $site;
 	}
 
+
 	/**
-	 * Magic function to specify properties
+	 * Property set magic method
 	 *
-	 * remote - Adds a remote system to use
+	 * <b>Properties</b>
+	 * Property | Type | Description
+	 * -------- | ---- | -----------
 	 *
-	 * @param $name
-	 * @param $value
+	 * @param string $property Property name
+	 * @param mixed $value Value to set
 	 */
-	public function __set($name, $value) {
-		switch($name) {
+	public function __set($property, $value) {
+		switch($property) {
 			case 'remote':
 				$this->remotes[] = $value;
 				break;
@@ -55,8 +60,30 @@ class SshExec {
 			case 'port':
 				$this->port = $value;
 				break;
+
+			case 'site':
+				$this->site = $value;
+				break;
+
+			case 'workspaceSource':
+				$this->workspaceSource = $value;
+				break;
+
+			case 'command':
+				$this->command = $value;
+				break;
+
+			default:
+				$trace = debug_backtrace();
+				trigger_error(
+					'Undefined property ' . $property .
+					' in ' . $trace[0]['file'] .
+					' on line ' . $trace[0]['line'],
+					E_USER_NOTICE);
+				break;
 		}
 	}
+
 
 	/**
 	 * Attempt to connect to the remote system.
@@ -65,7 +92,7 @@ class SshExec {
 	public function connect() {
 		$remote = $this->remotes[0];
 
-		$this->connection = ssh2_connect($remote, $this->port);
+		$this->connection = \ssh2_connect($remote, $this->port);
 		if($this->connection === false) {
 			$this->connection = null;
 			return false;
@@ -75,7 +102,7 @@ class SshExec {
 		$publickey = $rootdir . $this->publickey;
 		$privatekey = $rootdir . $this->privatekey;
 
-		if(!ssh2_auth_pubkey_file($this->connection, $this->keyuser,
+		if(!\ssh2_auth_pubkey_file($this->connection, $this->keyuser,
 			$publickey, $privatekey, null)) {
 			$this->connection->disconnect();
 			$this->connection = null;
@@ -92,8 +119,9 @@ class SshExec {
 
 	/**
 	 * Execute a command on the remote system.
-	 * @param $cmd Command to execute
+	 * @param string $cmd Command to execute
 	 * @return string Response to the command
+	 * @throws \Exception on failure
 	 */
 	public function exec($cmd) {
 		if($this->connection === null) {
@@ -119,6 +147,7 @@ class SshExec {
 
 		fclose($stream);
 		fclose($errorStream);
+
 		return $data;
 	}
 
@@ -131,6 +160,7 @@ class SshExec {
 	 * some source data.
 	 * @param string $loading Path on remote system to data to load
 	 * @return string Command result
+	 * @throws \Exception on failure
 	 */
 	public function create_workspace($loading = null) {
 		$this->workspace = "/tmp/t" . bin2hex(openssl_random_pseudo_bytes(8));
@@ -156,17 +186,100 @@ class SshExec {
 
 		$remote_file = "$this->workspace/$filename";
 		$stream = @fopen("ssh2.sftp://$sftp$remote_file", 'w');
-		if (! $stream)
-			throw new Exception("Could not open file: $remote_file");
+		if (! $stream) {
+			throw new \Exception("Could not open file: $remote_file");
+		}
 
-		if (fwrite($stream, $data) === false)
-			throw new Exception("Could not send data");
+		if (fwrite($stream, $data) === false) {
+			throw new \Exception("Could not send data");
+		}
 
 		fclose($stream);
 	}
 
 	public function read($filename) {
 		return $this->exec("cat $this->workspace/$filename");
+	}
+
+	public function sequence($sources) {
+		if($this->connect()) {
+			$result = $this->create_workspace($this->workspaceSource);
+			foreach($this->files as $file) {
+				$this->write($sources[$file['post']], $file['file']);
+			}
+
+			$result .= $this->exec_workspace($this->command);
+
+			$this->destroy_workspace();
+			$this->disconnect();
+
+			return ['ok'=>true, 'result'=>htmlentities($result)];
+		}
+
+		return ['ok'=>false, 'msg'=>'Unable to connect to remote system'];
+	}
+
+	/**
+	 * Get data for execution suitable for sending to a client.
+	 *
+	 * Data is json-encoded and then encrypted using \CL\Site\Util\Encrypt
+	 * using the users private and public keys. The avoids client manipulation
+	 * of the contents.
+	 *
+	 * @param Site $site
+	 * @return array
+	 * @throws \CL\Site\Util\EncryptException
+	 */
+	public function data(Site $site) {
+		$data = [
+			'remotes'=>$this->remotes,
+			'publickey'=>$this->publickey,
+			'privatekey'=>$this->privatekey,
+			'keyuser'=>$this->keyuser,
+			'port'=>$this->port,
+			'files'=>$this->files,
+			'workspaceSource'=>$this->workspaceSource,
+			'command'=>$this->command
+		];
+
+		$json = json_encode($data);
+
+		$encrypt = new Encrypt();
+		$encrypt->privateKey = $site->users->privateKey;
+		$encrypt->publicKey = $site->users->publicKey;
+
+		return $encrypt->encrypt_large($json, true);
+	}
+
+	/**
+	 * Loads data back in from client.
+	 *
+	 * Decrypts the data that was previously encrypted.
+	 *
+	 * @param Site $site
+	 * @param $data
+	 * @throws \CL\Site\Util\EncryptException
+	 */
+	public function load(Site $site, $data) {
+		$encrypt = new Encrypt();
+		$encrypt->privateKey = $site->users->privateKey;
+		$encrypt->publicKey = $site->users->publicKey;
+
+		$msg = $encrypt->decrypt_large($data, false);
+		$data = json_decode($msg, true);
+
+		$this->remotes = $data['remotes'];
+		$this->publickey = $data['publickey'];
+		$this->privatekey = $data['privatekey'];
+		$this->keyuser = $data['keyuser'];
+		$this->port = $data['port'];
+		$this->files = $data['files'];
+		$this->workspaceSource = $data['workspaceSource'];
+		$this->command = $data['command'];
+	}
+
+	public function addFile($postName, $fileName) {
+		$this->files[] = ['post'=>$postName, 'file'=>$fileName];
 	}
 
 	private $site;
@@ -176,6 +289,9 @@ class SshExec {
 	private $privatekey = null;
 	private $keyuser = null;
 	private $port = 22;
+	private $files = [];
+	private $workspaceSource = null;
+	private $command = null;
 
 	private $connection = false;
 

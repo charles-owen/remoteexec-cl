@@ -9,11 +9,15 @@ namespace CL\RemoteExec;
 
 use CL\Site\Site;
 use CL\Site\Util\Encrypt;
-
+use CL\Site\Util\EncryptException;
+use Exception;
 
 /**
  * This class manages execution of test programs on a remote
  * system via SSH.
+ *
+ * @cond
+ * @endcond
  */
 class SshExec {
 	/**
@@ -112,6 +116,10 @@ class SshExec {
 		return true;
 	}
 
+	/**
+	 * Disconnect from remote system.
+	 * @return bool True if successful
+	 */
 	public function disconnect() {
 		$this->connection = null;
 		return true;
@@ -121,7 +129,7 @@ class SshExec {
 	 * Execute a command on the remote system.
 	 * @param string $cmd Command to execute
 	 * @return string Response to the command
-	 * @throws \Exception on failure
+	 * @throws Exception on failure
 	 */
 	public function exec($cmd) {
 		if($this->connection === null) {
@@ -151,6 +159,12 @@ class SshExec {
 		return $data;
 	}
 
+	/**
+	 * Execute a command in the temporary workspace.
+	 * @param string $cmd Command to execute (like 'make')
+	 * @return string Result from command
+	 * @throws Exception
+	 */
 	public function exec_workspace($cmd) {
 		return $this->exec("cd $this->workspace; $cmd");
 	}
@@ -160,7 +174,7 @@ class SshExec {
 	 * some source data.
 	 * @param string $loading Path on remote system to data to load
 	 * @return string Command result
-	 * @throws \Exception on failure
+	 * @throws Exception on failure
 	 */
 	public function create_workspace($loading = null) {
 		$this->workspace = "/tmp/t" . bin2hex(openssl_random_pseudo_bytes(8));
@@ -171,14 +185,30 @@ class SshExec {
 		}
 	}
 
+	/**
+	 * Destroy the temporary workspace
+	 * @return string result of the command execution
+	 * @throws Exception
+	 */
 	public function destroy_workspace() {
 		return $this->exec("rm -rf $this->workspace");
 	}
 
+	/**
+	 * List files in the temporary workspace
+	 * @return string result of the command execution
+	 * @throws Exception
+	 */
 	public function ls() {
 		return $this->exec("ls -al $this->workspace");
 	}
 
+	/**
+	 * Write data as a file in the temporary workspace
+	 * @param string $data Data to write
+	 * @param string $filename Filename to save the data as
+	 * @throws Exception
+	 */
 	public function write($data, $filename) {
 		if(!($sftp = ssh2_sftp($this->connection))) {
 			throw new \Exception('SSH FTP command failed');
@@ -197,10 +227,29 @@ class SshExec {
 		fclose($stream);
 	}
 
+	/**
+	 * Read a file in the temporary worksapce
+	 * @param string $filename File to read
+	 * @return string File contents
+	 * @throws Exception
+	 */
 	public function read($filename) {
 		return $this->exec("cat $this->workspace/$filename");
 	}
 
+	/**
+	 * The typical processing sequence:
+	 *
+	 * Connect to the remote system
+	 * Create a workspace
+	 * Execute some command in that workspace
+	 * Destroy the workspace
+	 * Disconnect
+	 *
+	 * @param array $sources Data to save on remote system as files
+	 * @return array with keys 'ok', 'msg' (on fail), and 'result' (on success)
+	 * @throws Exception
+	 */
 	public function sequence($sources) {
 		if($this->connect()) {
 			$result = $this->create_workspace($this->workspaceSource);
@@ -222,13 +271,13 @@ class SshExec {
 	/**
 	 * Get data for execution suitable for sending to a client.
 	 *
-	 * Data is json-encoded and then encrypted using \CL\Site\Util\Encrypt
+	 * Data is json-encoded and then encrypted using Encrypt
 	 * using the users private and public keys. The avoids client manipulation
 	 * of the contents.
 	 *
 	 * @param Site $site
 	 * @return array
-	 * @throws \CL\Site\Util\EncryptException
+	 * @throws EncryptException
 	 */
 	public function data(Site $site) {
 		$data = [
@@ -258,7 +307,7 @@ class SshExec {
 	 *
 	 * @param Site $site
 	 * @param $data
-	 * @throws \CL\Site\Util\EncryptException
+	 * @throws EncryptException
 	 */
 	public function load(Site $site, $data) {
 		$encrypt = new Encrypt();
@@ -278,6 +327,11 @@ class SshExec {
 		$this->command = $data['command'];
 	}
 
+	/**
+	 * Add a file to be uploaded to remote system.
+	 * @param string $postName Key name in the sources passed to sequence()
+	 * @param string $fileName Filename to use on remote system
+	 */
 	public function addFile($postName, $fileName) {
 		$this->files[] = ['post'=>$postName, 'file'=>$fileName];
 	}

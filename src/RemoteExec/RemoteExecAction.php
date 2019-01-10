@@ -7,7 +7,6 @@
 namespace CL\RemoteExec;
 
 use CL\Playground\Action\Action;
-
 use CL\Site\Site;
 
 /**
@@ -18,8 +17,8 @@ class RemoteExecAction extends Action {
 	/**
 	 * RemoteExecAction constructor.
 	 */
-	public function __construct() {
-		parent::__construct('remoteexec');
+	public function __construct($tag=null) {
+		parent::__construct($tag === null ? 'remoteexec' : $tag);
 
 		$this->ssh = new SshExec();
 	}
@@ -44,23 +43,13 @@ class RemoteExecAction extends Action {
 		}
 	}
 
-	/**
-	 * Add a source we send to remote execution.
-	 * @param string $tag Tag for the tab we get the data from
-	 */
-	public function source($tag) {
-		$this->sources[] = $tag;
-	}
-
 
 	public function data(Site $site) {
 		$data = parent::data($site);
 
-		$data['sources'] = $this->sources;
 		$data['ssh'] = $this->ssh->data($site);
 		return $data;
 	}
 
-	private $sources = [];
 	private $ssh;
 }

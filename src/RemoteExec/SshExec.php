@@ -17,6 +17,10 @@ use Exception;
  * system via SSH.
  *
  * @cond
+ * @property string keyuser
+ * @property string privatekey
+ * @property string publickey
+ * @property string remote
  * @endcond
  */
 class SshExec {
@@ -75,6 +79,10 @@ class SshExec {
 
 			case 'command':
 				$this->command = $value;
+				break;
+
+			case 'verbose':
+				$this->verbose = $value;
 				break;
 
 			default:
@@ -178,10 +186,17 @@ class SshExec {
 	 */
 	public function create_workspace($loading = null) {
 		$this->workspace = "/tmp/t" . bin2hex(openssl_random_pseudo_bytes(8));
+		$result = '';
 		if($loading !== null) {
-			return $this->exec("mkdir $this->workspace; cp -rf $loading $this->workspace");
+			$result = $this->exec("mkdir $this->workspace; cp -rf $loading $this->workspace");
 		} else {
-			return $this->exec("mkdir $this->workspace");
+			$result = $this->exec("mkdir $this->workspace");
+		}
+
+		if($this->verbose) {
+			return $result;
+		} else {
+			return '';
 		}
 	}
 
@@ -291,6 +306,10 @@ class SshExec {
 			'command'=>$this->command
 		];
 
+		if(count($this->filters) > 0) {
+			$data['filters'] = $this->filters;
+		}
+
 		$json = json_encode($data);
 
 		$encrypt = new Encrypt();
@@ -325,6 +344,40 @@ class SshExec {
 		$this->files = $data['files'];
 		$this->workspaceSource = $data['workspaceSource'];
 		$this->command = $data['command'];
+
+		if(isset($data['filters'])) {
+			$this->filters = $data['filters'];
+		} else {
+			$this->filters = [];
+		}
+	}
+
+	/**
+	 * Add a filter that will be applied to the data that is
+	 * being sent to the
+	 * @param $regex
+	 * @param $message
+	 */
+	public function addFilter($regex, $message) {
+		$this->filters[] = ['filter'=>$regex, 'message'=>$message];
+	}
+
+	/**
+	 * Filter an array of text content sources against any regular expression filters
+	 * @param array $sources Array of source objects
+	 * @return string message if failed filter tests
+	 */
+	public function filter($sources) {
+		foreach($this->filters as $filter) {
+			$regex = $filter['filter'];
+			foreach($sources as $source) {
+				if(preg_match($regex, $source) === 1) {
+					return $filter['message'];
+				}
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -346,8 +399,10 @@ class SshExec {
 	private $files = [];
 	private $workspaceSource = null;
 	private $command = null;
+	private $filters = [];
 
 	private $connection = false;
 
 	private $workspace = null;
+	private $verbose = false;
 }

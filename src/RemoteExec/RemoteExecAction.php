@@ -8,6 +8,7 @@ namespace CL\RemoteExec;
 
 use CL\Playground\Action\Action;
 use CL\Site\Site;
+use CL\Site\Util\EncryptException;
 
 /**
  * Playground action that executes code on a remote system.
@@ -43,7 +44,12 @@ class RemoteExecAction extends Action {
 		}
 	}
 
-
+	/**
+	 * Create data describing the action suitable for sending to client
+	 * @param Site $site The site object
+	 * @return array of data
+	 * @throws EncryptException
+	 */
 	public function data(Site $site) {
 		$data = parent::data($site);
 

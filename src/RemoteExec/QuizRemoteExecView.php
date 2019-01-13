@@ -1,13 +1,16 @@
 <?php
 /**
  * @file
- * View class to present a view of remove exec quizzes
+ * View class to present a view of remote execution quizzes
  */
 
 namespace CL\RemoteExec;
 
 use \CL\Quiz\QuizView;
 
+/**
+ * View class to present a view of remote execution quizzes
+ */
 class QuizRemoteExecView extends QuizView {
 	/**
 	 * Present content that goes after the quiz. This is overridden in custom

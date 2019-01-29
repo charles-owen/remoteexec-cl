@@ -119,10 +119,10 @@ TEXT;
 			return $json;
 
 
-			$data = "Remote execution not available when\nrunning in the sandbox.";
-			$json = new JsonAPI();
-			$json->addData('remoteexec-result', 0, $data);
-			return $json;
+//			$data = "Remote execution not available when\nrunning in the sandbox.";
+//			$json = new JsonAPI();
+//			$json->addData('remoteexec-result', 0, $data);
+//			return $json;
 		}
 
 		$result = $ssh->sequence($sources);

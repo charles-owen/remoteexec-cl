@@ -277,7 +277,9 @@ class SshExec {
 			$this->destroy_workspace();
 			$this->disconnect();
 
-			return ['ok'=>true, 'result'=>htmlentities($result)];
+			$result = htmlentities($result, ENT_COMPAT|ENT_SUBSTITUTE|ENT_HTML5);
+			$result = str_replace("&ast;", "*", $result);
+			return ['ok'=>true, 'result'=>$result];
 		}
 
 		return ['ok'=>false, 'msg'=>'Unable to connect to remote system'];

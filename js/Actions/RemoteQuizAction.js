@@ -12,6 +12,8 @@ export const RemoteQuizAction = function(site, options) {
 	this.additional = function(params) {
 		params.appTag = options.appTag;
 		params.name = options.name;
+		params.success = options.success;
+		params.fail = options.fail;
 	}
 
 	this.process = function(data) {

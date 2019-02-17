@@ -19,11 +19,6 @@ use CL\Playground\Action\Action;
  * send their result to a remove system for compilation and testing.
  *
  * @cond
- * @property string source
- * @property string testfile
- * @property string command
- * @property string success
- * @property string fail Regular expression
  * @endcond
  */
 class QuizQuestionRemoteExec extends \CL\Quiz\QuizQuestion {
@@ -32,7 +27,9 @@ class QuizQuestionRemoteExec extends \CL\Quiz\QuizQuestion {
 	public function __construct() {
 		parent::__construct();
 
-		$this->action = new RemoteQuizAction();
+		$this->ssh = new SshExec();
+
+		$this->defaultCommand = new QuizRemoteCommand($this->ssh, 'Test', 'make r={success} test');
 
 		$this->mustProvideMessage = 'Must click Test before submitting quiz result';
 
@@ -52,14 +49,9 @@ class QuizQuestionRemoteExec extends \CL\Quiz\QuizQuestion {
 	 */
 	public function __get($property) {
 		switch($property) {
-			case 'source':
-				return $this->source;
-
-			case 'testfile':
-				return $this->testfile;
 
 			case 'ssh':
-				return $this->action->ssh;
+				return $this->ssh;
 
 			default:
 				return parent::__get($property);
@@ -79,13 +71,6 @@ class QuizQuestionRemoteExec extends \CL\Quiz\QuizQuestion {
 	 */
 	public function __set($property, $value) {
 		switch($property) {
-			case 'source':
-				$this->source = $value;
-				break;
-
-			case 'testfile':
-				$this->testfile = $value;
-				break;
 
 			case 'answer':
 				$this->answer = $value;
@@ -99,18 +84,24 @@ class QuizQuestionRemoteExec extends \CL\Quiz\QuizQuestion {
 				$this->appTag = $value;
 				break;
 
+			//
+			// The following options are deprecated and
+			// included for backward compatibility only.
+			//
+			case 'testfile':
+				$this->file('main', $value);
+				break;
+
 			case 'command':
-				$this->command = $value;
+				$this->defaultCommand->action->command = $value;
 				break;
 
-			// Regular expression used to find success value in result
 			case 'success':
-				$this->success = $value;
+				$this->defaultCommand->action->success = $value;
 				break;
 
-			// Regular expression that if matched represents a quiz failure
 			case 'fail':
-				$this->fail = $value;
+				$this->defaultCommand->action->fail = $value;
 				break;
 
 			default:
@@ -159,48 +150,85 @@ HTML;
 		$name = $this->name !== null ? $this->name : $this->file;
 		$appTag = $this->appTag !== null ? $this->appTag : $this->quiz->assignTag;
 
-		$this->action->option('appTag', $appTag);
-		$this->action->option('name', $name);
-		$this->action->option('success', $this->success);
-		$this->action->option('fail', $this->fail);
+		if(count($this->commands) === 0) {
+			$this->commands[] = $this->defaultCommand;
+		}
 
+		foreach($this->commands as $command) {
+			$action = $command->action;
+			$action->option('appTag', $appTag);
+			$action->option('name', $name);
+			$action->command = str_replace('{success}', $this->successValue, $action->command);
+		}
 
 		$remoteExec = new RemoteExecViewAux();
 
-		$ssh = $this->action->ssh;
-		if($this->testfile !== null) {
-			$ssh->addFile('main', $this->testfile);
+		$ssh = $this->ssh;
+		foreach($this->files as $file) {
+			$ssh->addFile($file['tag'], $file['name']);
 		}
-
-		$ssh->command = str_replace('{success}', $this->successValue, $this->command);
 
 		// Get the playground
 		$playground = $remoteExec->playground;
 		$playground->height = '40em';
 		$playground->display = 'window';
 
-		// Get the root pane
-		$pane = $playground->pane;
-		list($left, $right) = $pane->split(true, 50);
-
-		$editor = new EditorTab('main', 'source');
-		$left->add($editor);
-
-		$output = new OutputTab('output', 'result');
-		$right->add($output);
-
-		// Menus
+		//
+		// File menu
+		//
 		$file = $playground->addMenu('File');
+
+		//
+		// Save menu option
+		//
 		$save = $file->addMenu('Save');
 		$saveAction = new Action('save');
 		$saveAction->option('appTag', $appTag);
 		$saveAction->option('name', $name);
-		$saveAction->source('main');
 		$save->action = $saveAction;
 
-		$test = $playground->addMenu('Test');
-		$this->action->source('main');
-		$test->action = $this->action;
+		//
+		// Test menu
+		//
+//		$test = $playground->addMenu('Test');
+//		$test->action = $this->action;
+
+		// Get the root pane
+		$pane = $playground->pane;
+		list($left, $right) = $pane->split(true, 50);
+
+		if(count($this->files) === 0) {
+			// Compatibility mode, file is indicated by 'testfile' only
+			$editor = new EditorTab('main', 'source');
+			$left->add($editor);
+			$saveAction->source('main');
+
+			foreach($this->commands as $command) {
+				$command->action->source('main');
+			}
+		} else {
+			// New mode, tabs specified by name
+			foreach($this->files as $file) {
+				$tag = $file['tag'];
+
+				$editor = new EditorTab($tag, $file['name']);
+				$left->add($editor);
+				$saveAction->source($tag);
+
+				foreach($this->commands as $command) {
+					$command->action->source($tag);
+				}
+			}
+		}
+
+		// Create menu options
+		foreach($this->commands as $command) {
+			$option = $playground->addMenu($command->option);
+			$option->action = $command->action;
+		}
+
+		$output = new OutputTab('output', 'result');
+		$right->add($output);
 
 		$playground->load($site, $user, $appTag, $name);
 
@@ -210,6 +238,9 @@ HTML;
 
 	/**
 	 * Handle a submit of the question answer from the POST page
+	 * @param Site $site The site object
+	 * @param User $user The current user
+	 * @param $post
 	 * @return string HTML for the question
 	 */
 	public function submit(Site $site, User $user, $post) {
@@ -218,7 +249,7 @@ HTML;
 		$circuit = $post['cl-playground-code'];
 
 		$html = $this->text;
-		$good = +$answer === $this->successValue;
+		$good = is_numeric($answer) && (+$answer === $this->successValue);
 
 		$this->correct = $good ? $this->points : 0;
 		$this->studentanswer = $circuit;
@@ -253,11 +284,31 @@ HTML;
 	}
 
 
-	private $action;
+	/**
+	 * Add a tab to the Playground for testing.
+	 * @param $tag Tag associated with the tab data
+	 * @param $name File name for the tab
+	 */
+	public function file($tag, $name) {
+		$this->files[] = [
+			'tag'=>$tag,
+			'name'=>$name
+		];
+	}
 
-	private $ssh;
-	private $source = null;
-	private $testfile = null;
+	/**
+	 * Add a command and menu option.
+	 * @param string $option Menu option (top level)
+	 * @param string $command Command to send to remote system.
+	 * @return QuizRemoteCommand object.
+	 */
+	public function command($option, $command) {
+		$obj = new QuizRemoteCommand($this->ssh, $option, $command);
+		$this->commands[] = $obj;
+		return $obj;
+	}
+
+	private $ssh;           // SshExec object
 	private $answer = null;
 
 	// If a name is provided, that name is used for the single save name
@@ -266,7 +317,13 @@ HTML;
 	// If an appTag is provided, it is used as the appTag for single save mode
 	private $appTag = null;
 	private $successValue;
-	private $command = 'make test';
-	private $success = ' ([0-9]*) ';
-	private $fail = null;
+
+	// QuizRemoteCommand objects
+	private $commands = [];
+
+	private $files = [];
+
+	// This command is used as a default to provide backwards compatibility
+	// for quizzes. The use is deprecated.
+	private $defaultCommand;
 }

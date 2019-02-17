@@ -77,10 +77,6 @@ class SshExec {
 				$this->workspaceSource = $value;
 				break;
 
-			case 'command':
-				$this->command = $value;
-				break;
-
 			case 'verbose':
 				$this->verbose = $value;
 				break;
@@ -103,6 +99,9 @@ class SshExec {
 	 */
 	public function connect() {
 		$remote = $this->remotes[0];
+		if($this->site->sandbox) {
+			$remote = 'pi.golightspeed.com';
+		}
 
 		$this->connection = \ssh2_connect($remote, $this->port);
 		if($this->connection === false) {
@@ -188,7 +187,7 @@ class SshExec {
 		$this->workspace = "/tmp/t" . bin2hex(openssl_random_pseudo_bytes(8));
 		$result = '';
 		if($loading !== null) {
-			$result = $this->exec("mkdir $this->workspace; cp -rf $loading $this->workspace");
+			$result = $this->exec("mkdir $this->workspace; cp -rf $loading $this->workspace 2>/dev/null");
 		} else {
 			$result = $this->exec("mkdir $this->workspace");
 		}
@@ -262,17 +261,22 @@ class SshExec {
 	 * Disconnect
 	 *
 	 * @param array $sources Data to save on remote system as files
+	 * @param string $command Command to execute remotely
 	 * @return array with keys 'ok', 'msg' (on fail), and 'result' (on success)
 	 * @throws Exception
 	 */
-	public function sequence($sources) {
+	public function sequence($sources, $command) {
 		if($this->connect()) {
 			$result = $this->create_workspace($this->workspaceSource);
-			foreach($this->files as $file) {
-				$this->write($sources[$file['post']], $file['file']);
+//			foreach($this->files as $file) {
+//				$this->write($sources[$file['post']], $file['file']);
+//			}
+
+			foreach($sources as $source) {
+				$this->write($source['data'], $source['name']);
 			}
 
-			$result .= $this->exec_workspace($this->command);
+			$result .= $this->exec_workspace($command);
 
 			$this->destroy_workspace();
 			$this->disconnect();
@@ -305,7 +309,6 @@ class SshExec {
 			'port'=>$this->port,
 			'files'=>$this->files,
 			'workspaceSource'=>$this->workspaceSource,
-			'command'=>$this->command
 		];
 
 		if(count($this->filters) > 0) {
@@ -345,7 +348,6 @@ class SshExec {
 		$this->port = $data['port'];
 		$this->files = $data['files'];
 		$this->workspaceSource = $data['workspaceSource'];
-		$this->command = $data['command'];
 
 		if(isset($data['filters'])) {
 			$this->filters = $data['filters'];
@@ -373,7 +375,7 @@ class SshExec {
 		foreach($this->filters as $filter) {
 			$regex = $filter['filter'];
 			foreach($sources as $source) {
-				if(preg_match($regex, $source) === 1) {
+				if(preg_match($regex, $source['data']) === 1) {
 					return $filter['message'];
 				}
 			}
@@ -400,7 +402,6 @@ class SshExec {
 	private $port = 22;
 	private $files = [];
 	private $workspaceSource = null;
-	private $command = null;
 	private $filters = [];
 
 	private $connection = false;

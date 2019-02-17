@@ -18,10 +18,10 @@ class RemoteExecAction extends Action {
 	/**
 	 * RemoteExecAction constructor.
 	 */
-	public function __construct($tag=null) {
+	public function __construct(SshExec $ssh, $tag=null) {
 		parent::__construct($tag === null ? 'remoteexec' : $tag);
 
-		$this->ssh = new SshExec();
+		$this->ssh = $ssh;
 	}
 
 	/**
@@ -36,6 +36,9 @@ class RemoteExecAction extends Action {
 	 */
 	public function __get($property) {
 		switch($property) {
+			case 'command':
+				return $this->command;
+
 			case 'ssh':
 				return $this->ssh;
 
@@ -43,6 +46,29 @@ class RemoteExecAction extends Action {
 				return parent::__get($property);
 		}
 	}
+
+	/**
+	 * Property set magic method
+	 *
+	 * <b>Properties</b>
+	 * Property | Type | Description
+	 * -------- | ---- | -----------
+	 *
+	 * @param string $property Property name
+	 * @param mixed $value Value to set
+	 */
+	public function __set($property, $value) {
+		switch($property) {
+			case 'command':
+				$this->command = $value;
+				break;
+
+			default:
+				parent::__set($property, $value);
+				break;
+		}
+	}
+
 
 	/**
 	 * Create data describing the action suitable for sending to client
@@ -54,8 +80,11 @@ class RemoteExecAction extends Action {
 		$data = parent::data($site);
 
 		$data['ssh'] = $this->ssh->data($site);
+		$data['command'] = $this->command;
 		return $data;
 	}
 
 	private $ssh;
+	private $command;       // Command to send
+
 }

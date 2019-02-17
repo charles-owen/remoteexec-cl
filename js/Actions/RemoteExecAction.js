@@ -17,6 +17,7 @@ export const RemoteExecAction = function(site, options) {
 
 		const params = {
 			sources: sources,
+			command: options.command,
 			ssh: options.ssh
 		};
 
@@ -29,7 +30,6 @@ export const RemoteExecAction = function(site, options) {
 		if(output !== null) {
 			output.set('');
 		}
-
 
 		site.api.post('/api/remoteexec/exec', params)
 			.then((response) => {

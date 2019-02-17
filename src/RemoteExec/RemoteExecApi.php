@@ -49,7 +49,7 @@ class RemoteExecApi extends \CL\Users\Api\Resource {
 
 	private function exec(Site $site, User $user, Server $server, array $params, $time) {
 		$post = $server->post;
-		$this->ensure($post, ['sources', 'ssh']);
+		$this->ensure($post, ['sources', 'ssh', 'command']);
 
 		$sources = $post['sources'];
 
@@ -77,16 +77,15 @@ class RemoteExecApi extends \CL\Users\Api\Resource {
 				$fs = new FileSystem($site->db);
 				$data = json_encode($sources);
 				if(!$fs->fileExists($user->id, $user->member->id, $appTag, $name)) {
-					$ret = $fs->writeText($user->id, $user->member->id, $appTag, $name, $data, 'application/json', FileSystem::PERMISSION_PRIVATE, $time);
+					$fs->writeText($user->id, $user->member->id, $appTag, $name, $data, 'application/json', FileSystem::PERMISSION_PRIVATE, $time);
 				} else {
-					$ret = $fs->updateText($user->id, $user->member->id, $appTag, $name, $data, 'application/json', FileSystem::PERMISSION_PRIVATE, $time);
+					$fs->updateText($user->id, $user->member->id, $appTag, $name, $data, 'application/json', FileSystem::PERMISSION_PRIVATE, $time);
 				}
 			}
 		}
 
 		$ssh = new SshExec($site);
 		$ssh->load($site, $post['ssh']);
-
 
 		// Perform any SSH filtering required
 		$msg = $ssh->filter($sources);
@@ -98,34 +97,35 @@ class RemoteExecApi extends \CL\Users\Api\Resource {
 			$ssh->verbose = true;
 		}
 
-		if($site->sandbox) {
-			sleep(1);
-			$result = <<<TEXT
-gcc  -Wall -I/home/cse320/files/include   -c -o test.o test.c
-gcc  -Wall -I/home/cse320/files/include   -c -o catto.o catto.c
-gcc -o stringcatter test.o catto.o  -L/home/cse320/files/lib -l320
-*** Tests Started 1.03 ***
-Testing concatenation of 'abcd' and 'efgh'
-Testing concatenation of '' and '012345678'
-Testing concatenation of 'Now we have something ' and ''
-Testing concatenation of 'Ay ' and 'caramba'
-Testing concatenation of '1377572551' and '289170052'
-*** Tests Successful 376164041 ***
-
-TEXT;
-
-			$json = new JsonAPI();
-			$json->addData('remoteexec-result', 0, $result);
-			return $json;
-
-
-//			$data = "Remote execution not available when\nrunning in the sandbox.";
+//		if($site->sandbox) {
+//			sleep(1);
+//
+//			$result = <<<TEXT
+//gcc  -Wall -I/home/cse320/files/include   -c -o test.o test.c
+//gcc  -Wall -I/home/cse320/files/include   -c -o catto.o catto.c
+//gcc -o stringcatter test.o catto.o  -L/home/cse320/files/lib -l320
+//*** Tests Started 1.03 ***
+//Testing concatenation of 'abcd' and 'efgh'
+//Testing concatenation of '' and '012345678'
+//Testing concatenation of 'Now we have something ' and ''
+//Testing concatenation of 'Ay ' and 'caramba'
+//Testing concatenation of '1377572551' and '289170052'
+//*** Tests Successful 376164041 ***
+//
+//TEXT;
+//
 //			$json = new JsonAPI();
-//			$json->addData('remoteexec-result', 0, $data);
+//			$json->addData('remoteexec-result', 0, $result);
 //			return $json;
-		}
+//
+//
+////			$data = "Remote execution not available when\nrunning in the sandbox.";
+////			$json = new JsonAPI();
+////			$json->addData('remoteexec-result', 0, $data);
+////			return $json;
+//		}
 
-		$result = $ssh->sequence($sources);
+		$result = $ssh->sequence($sources, $post['command']);
 		if(!$result['ok']) {
 			throw new APIException($result['msg']);
 		}

@@ -281,7 +281,7 @@ class SshExec {
 			$this->destroy_workspace();
 			$this->disconnect();
 
-			$result = htmlentities($result, ENT_COMPAT|ENT_SUBSTITUTE|ENT_HTML5);
+			$result = htmlentities($result, ENT_COMPAT|ENT_SUBSTITUTE); // |ENT_HTML5);
 			$result = str_replace("&ast;", "*", $result);
 			return ['ok'=>true, 'result'=>$result];
 		}

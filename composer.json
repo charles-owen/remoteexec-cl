@@ -22,6 +22,6 @@
   ],
   "require": {
     "ext-openssl": "*",
-    "cl/playground": "^2.2"
+    "cl/playground": "^2.3.1"
   }
 }

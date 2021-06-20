@@ -10,7 +10,6 @@
   ],
   "author": "Charles B. Owen",
   "license": "MIT",
-  "devDependencies": {},
   "dependencies": {
     "course-cl": ">=0.0.1"
   }

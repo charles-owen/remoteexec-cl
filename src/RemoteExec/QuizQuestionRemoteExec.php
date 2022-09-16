@@ -232,7 +232,7 @@ HTML;
 
 		$playground->load($site, $user, $appTag, $name);
 
-		return $remoteExec->playground->present($site, $user, null);
+		return $remoteExec->playground->present($site, $user);
 	}
 
 

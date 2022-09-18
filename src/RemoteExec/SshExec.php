@@ -114,7 +114,7 @@ class SshExec {
 		$privatekey = $rootdir . $this->privatekey;
 
 		if(!\ssh2_auth_pubkey_file($this->connection, $this->keyuser,
-			$publickey, $privatekey, null)) {
+			$publickey, $privatekey)) {
 			$this->connection->disconnect();
 			$this->connection = null;
 			return false;
@@ -229,7 +229,9 @@ class SshExec {
 		}
 
 		$remote_file = "$this->workspace/$filename";
-		$stream = @fopen("ssh2.sftp://$sftp$remote_file", 'w');
+        // echo "ssh2.sftp://{$sftp}$remote_file";
+
+        $stream = @fopen("ssh2.sftp://{$sftp}$remote_file", 'w');
 		if (! $stream) {
 			throw new \Exception("Could not open file: $remote_file");
 		}
@@ -268,9 +270,6 @@ class SshExec {
 	public function sequence($sources, $command) {
 		if($this->connect()) {
 			$result = $this->create_workspace($this->workspaceSource);
-//			foreach($this->files as $file) {
-//				$this->write($sources[$file['post']], $file['file']);
-//			}
 
 			foreach($sources as $source) {
 				$this->write($source['data'], $source['name']);

@@ -11,6 +11,8 @@
   "author": "Charles B. Owen",
   "license": "MIT",
   "dependencies": {
-    "course-cl": ">=0.0.1"
+    "course-cl": ">=0.0.1",
+    "dialog-cl": "^1.0.7",
+    "site-cl": "~0.0.1"
   }
 }
